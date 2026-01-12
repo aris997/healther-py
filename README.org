@@ -1,0 +1,17 @@
+* Healther-py
+
+Healther is a small service to check if a service is up and running
+
+** Roadmap
+
+- Add a service to check
+- Send a notification
+  - Email
+  - Telegram message
+  
+- Define check period
+
+---
+
+Last update 2026-01-12 14:17
+
