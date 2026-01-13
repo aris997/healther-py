@@ -1,0 +1,78 @@
+name: healther-local
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: healther
+      POSTGRES_PASSWORD: healther
+      POSTGRES_DB: healther
+      POSTGRES_HOST_AUTH_METHOD: trust
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - healther-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U healther -d healther"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - healther-net
+
+  api:
+    build: .
+    env_file: .env.docker
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "127.0.0.1:8000:8000"
+    networks:
+      - healther-net
+
+  worker:
+    build: .
+    command: ["python", "-m", "healther.workers"]
+    env_file: .env.docker
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - healther-net
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "127.0.0.1:4173:80"
+    depends_on:
+      - api
+    networks:
+      - healther-net
+
+  mailhog:
+    image: mailhog/mailhog
+    ports:
+      - "127.0.0.1:8025:8025"
+    networks:
+      - healther-net
+
+networks:
+  healther-net:
+    driver: bridge
+
+volumes:
+  db_data:
+    name: healther_db_data
+  redis_data:
+    name: healther_redis_data
