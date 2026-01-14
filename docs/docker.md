@@ -16,12 +16,12 @@ Services:
 - `frontend` (static site via Nginx, http://localhost:4173)
 - `mailhog` (fake SMTP inbox, http://localhost:8025)
 
-## Environment variables
-- `DATABASE_URL` e.g. `postgresql+psycopg://healther:healther@db:5432/healther`
+## Environment variables (single source)
+- `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
 - `REDIS_URL` e.g. `redis://redis:6379/0`
 - `SECRET_KEY` for JWT signing
 - `SMTP_HOST`, `SMTP_PORT`, `MAIL_FROM` (for future email alerts)
-- If `DATABASE_URL` is unset in local dev, the API falls back to SQLite `sqlite+aiosqlite:///./healther.db`
+- `DATABASE_URL` is optional; if absent, backend builds it from `POSTGRES_*` and falls back to SQLite only if nothing is set
 
 ## Local dev without Docker
 ```bash

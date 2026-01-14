@@ -3,7 +3,7 @@
 ## High level
 - **Backend**: FastAPI + SQLModel for API and data models; async Postgres via psycopg3; Redis + RQ queue for background health checks and email fan-out later.
 - **Worker**: RQ worker (`python -m healther.workers`) consuming `health-checks` queue; re-enqueues checks based on watcher cadence.
-- **Database**: Postgres stores users, workspaces, memberships, watchers, and health events (default local fallback uses SQLite via `sqlite+aiosqlite:///./healther.db`); Redis stores job queues and schedules.
+- **Database**: Postgres stores users, workspaces, memberships, watchers, and health events (default local fallback uses SQLite via `sqlite+aiosqlite:///./healther.db` if no `POSTGRES_*`/`DATABASE_URL` is set); Redis stores job queues and schedules.
 - **Frontend**: Vite + React single-page app served via Nginx in production container; consumes backend API.
 - **Container orchestration**: docker-compose spins up db, redis, api, worker, frontend, mailhog.
 
