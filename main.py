@@ -1,7 +1,6 @@
 """ASGI entrypoint for Healther FastAPI application."""
 
-from healther.app import app, create_app
-
+from healther.app import app  # noqa: F401
 
 if __name__ == "__main__":
     import uvicorn
