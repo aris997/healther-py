@@ -8,7 +8,6 @@ from passlib.context import CryptContext
 
 from .config import settings
 
-
 pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
 
 
@@ -22,7 +21,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 def create_access_token(data: dict[str, Any], expires_minutes: int | None = None) -> str:
     to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + timedelta(minutes=expires_minutes or settings.access_token_expire_minutes)
+    expire = datetime.now(timezone.utc) + timedelta(
+        minutes=expires_minutes or settings.access_token_expire_minutes
+    )
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, settings.secret_key, algorithm=settings.algorithm)
     return encoded_jwt

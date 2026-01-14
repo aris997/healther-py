@@ -29,7 +29,9 @@ async def create_watcher(workspace_id: uuid.UUID, data, role: Role, session):
 
 
 async def list_watchers(workspace_id: uuid.UUID, session):
-    result = await session.exec(select(ServiceWatcher).where(ServiceWatcher.workspace_id == workspace_id))
+    result = await session.exec(
+        select(ServiceWatcher).where(ServiceWatcher.workspace_id == workspace_id)
+    )
     return result.all()
 
 
@@ -61,14 +63,26 @@ async def perform_check(watcher: ServiceWatcher, session):
             elapsed_ms = response.elapsed.total_seconds() * 1000
             if response.status_code != watcher.expected_status:
                 await record_event(
-                    watcher.id, HealthStatus.down, response.status_code, elapsed_ms, "Unexpected status", session
+                    watcher.id,
+                    HealthStatus.down,
+                    response.status_code,
+                    elapsed_ms,
+                    "Unexpected status",
+                    session,
                 )
             elif watcher.expected_body and watcher.expected_body not in response.text:
                 await record_event(
-                    watcher.id, HealthStatus.degraded, response.status_code, elapsed_ms, "Body mismatch", session
+                    watcher.id,
+                    HealthStatus.degraded,
+                    response.status_code,
+                    elapsed_ms,
+                    "Body mismatch",
+                    session,
                 )
             else:
-                await record_event(watcher.id, HealthStatus.healthy, response.status_code, elapsed_ms, None, session)
+                await record_event(
+                    watcher.id, HealthStatus.healthy, response.status_code, elapsed_ms, None, session
+                )
     except httpx.RequestError as exc:
         await record_event(watcher.id, HealthStatus.down, None, None, f"Error: {exc}", session)
 

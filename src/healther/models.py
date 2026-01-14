@@ -18,7 +18,9 @@ class User(SQLModel, table=True):
     email: str = Field(unique=True, index=True)
     full_name: str | None = None
     hashed_password: str
-    created_at: dt.datetime = Field(default_factory=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+    created_at: dt.datetime = Field(
+        default_factory=lambda: dt.datetime.now(dt.timezone.utc), nullable=False
+    )
 
     memberships: list["Membership"] = Relationship(back_populates="user")
 
@@ -27,7 +29,9 @@ class Workspace(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, nullable=False)
     name: str
     is_public: bool = False
-    created_at: dt.datetime = Field(default_factory=lambda: dt.datetime.now(dt.timezone.utc), nullable=False)
+    created_at: dt.datetime = Field(
+        default_factory=lambda: dt.datetime.now(dt.timezone.utc), nullable=False
+    )
 
     memberships: list["Membership"] = Relationship(back_populates="workspace")
     watchers: list["ServiceWatcher"] = Relationship(back_populates="workspace")

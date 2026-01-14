@@ -12,11 +12,12 @@ from ..models import Membership, Role, User
 from ..schemas import TokenData
 from ..security import decode_token
 
-
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
 
-async def get_current_user(token: str = Depends(oauth2_scheme), session=Depends(get_session)) -> User:
+async def get_current_user(
+    token: str = Depends(oauth2_scheme), session=Depends(get_session)
+) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -40,11 +41,19 @@ async def get_current_user(token: str = Depends(oauth2_scheme), session=Depends(
     return user
 
 
-async def get_workspace_role(workspace_id: uuid.UUID, current_user: User = Depends(get_current_user), session=Depends(get_session)) -> Role:
+async def get_workspace_role(
+    workspace_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session=Depends(get_session),
+) -> Role:
     result = await session.exec(
-        select(Membership.role).where(Membership.workspace_id == workspace_id, Membership.user_id == current_user.id)
+        select(Membership.role).where(
+            Membership.workspace_id == workspace_id, Membership.user_id == current_user.id
+        )
     )
     role = result.first()
     if role is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this workspace")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this workspace"
+        )
     return role

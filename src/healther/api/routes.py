@@ -14,10 +14,10 @@ from ..schemas import (
     Token,
     UserCreate,
     UserOut,
-    WorkspaceCreate,
-    WorkspaceOut,
     WatcherCreate,
     WatcherOut,
+    WorkspaceCreate,
+    WorkspaceOut,
 )
 from ..services import auth as auth_service
 from ..services import watchers as watcher_service
@@ -42,7 +42,11 @@ async def read_users_me(current_user: User = Depends(get_current_user)):
 
 
 @router.post("/workspaces", response_model=WorkspaceOut, status_code=status.HTTP_201_CREATED)
-async def create_workspace(data: WorkspaceCreate, current_user: User = Depends(get_current_user), session=Depends(get_session)):
+async def create_workspace(
+    data: WorkspaceCreate,
+    current_user: User = Depends(get_current_user),
+    session=Depends(get_session),
+):
     workspace = Workspace(name=data.name, is_public=data.is_public)
     session.add(workspace)
     await session.commit()
@@ -55,28 +59,49 @@ async def create_workspace(data: WorkspaceCreate, current_user: User = Depends(g
 
 
 @router.get("/workspaces", response_model=list[WorkspaceOut])
-async def list_workspaces(current_user: User = Depends(get_current_user), session=Depends(get_session)):
+async def list_workspaces(
+    current_user: User = Depends(get_current_user), session=Depends(get_session)
+):
     result = await session.exec(
-        select(Workspace).join(Membership, Membership.workspace_id == Workspace.id).where(Membership.user_id == current_user.id)
+        select(Workspace)
+        .join(Membership, Membership.workspace_id == Workspace.id)
+        .where(Membership.user_id == current_user.id)
     )
     return result.all()
 
 
-@router.post("/workspaces/{workspace_id}/watchers", response_model=WatcherOut, status_code=status.HTTP_201_CREATED)
-async def create_watcher(workspace_id: uuid.UUID, data: WatcherCreate, role: Role = Depends(get_workspace_role), session=Depends(get_session)):
+@router.post(
+    "/workspaces/{workspace_id}/watchers",
+    response_model=WatcherOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_watcher(
+    workspace_id: uuid.UUID,
+    data: WatcherCreate,
+    role: Role = Depends(get_workspace_role),
+    session=Depends(get_session),
+):
     watcher = await watcher_service.create_watcher(workspace_id, data, role, session)
     return watcher
 
 
 @router.get("/workspaces/{workspace_id}/watchers", response_model=list[WatcherOut])
-async def list_watchers(workspace_id: uuid.UUID, current_user: User = Depends(get_current_user), session=Depends(get_session)):
+async def list_watchers(
+    workspace_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session=Depends(get_session),
+):
     # ensure membership
     await get_workspace_role(workspace_id, current_user, session)
     return await watcher_service.list_watchers(workspace_id, session)
 
 
 @router.get("/watchers/{watcher_id}/events", response_model=list[HealthEventOut])
-async def list_events(watcher_id: uuid.UUID, current_user: User = Depends(get_current_user), session=Depends(get_session)):
+async def list_events(
+    watcher_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session=Depends(get_session),
+):
     result = await session.exec(select(ServiceWatcher).where(ServiceWatcher.id == watcher_id))
     watcher = result.first()
     if not watcher:
@@ -91,5 +116,7 @@ async def public_events(workspace_id: uuid.UUID, session=Depends(get_session)):
     workspace = await session.get(Workspace, workspace_id)
     if not workspace or not workspace.is_public:
         raise HTTPException(status_code=404, detail="Workspace not public")
-    events = await session.exec(select(HealthEvent).join(ServiceWatcher).where(ServiceWatcher.workspace_id == workspace_id))
+    events = await session.exec(
+        select(HealthEvent).join(ServiceWatcher).where(ServiceWatcher.workspace_id == workspace_id)
+    )
     return events.all()
