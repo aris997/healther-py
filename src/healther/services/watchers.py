@@ -102,3 +102,19 @@ def _interval_as_timedelta(watcher: ServiceWatcher):
     if watcher.every_unit == WatchFrequency.weeks:
         return timedelta(weeks=watcher.every_value)
     return timedelta(minutes=15)
+
+
+async def update_watcher(watcher: ServiceWatcher, data, role: Role, session):
+    """Update watcher fields and enqueue a fresh check."""
+    if role not in (Role.owner, Role.admin):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    payload = data.model_dump(exclude_unset=True)
+    if not payload:
+        return watcher
+    for key, value in payload.items():
+        setattr(watcher, key, value)
+    session.add(watcher)
+    await session.commit()
+    await session.refresh(watcher)
+    queue.enqueue("healther.workers.run_check", watcher.id)
+    return watcher
