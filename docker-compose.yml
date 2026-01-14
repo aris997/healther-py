@@ -1,14 +1,9 @@
-name: healther-local
+name: healther
 services:
   db:
     container_name: postgres-db
     image: postgres:16-alpine
     env_file: .env.docker
-    # environment:
-    #   POSTGRES_USER: ${POSTGRES_USER}
-    #   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    #   POSTGRES_DB: ${POSTGRES_DB}
-    # POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - db_data:/var/lib/postgresql/data
     networks:
@@ -42,7 +37,7 @@ services:
       redis:
         condition: service_started
     ports:
-      - "127.0.0.1:8000:8000"
+      - "8000:8000"
     networks:
       - healther-net
 
@@ -64,7 +59,7 @@ services:
     build:
       context: ./frontend
     ports:
-      - "127.0.0.1:4173:80"
+      - "4173:80"
     depends_on:
       - api
     networks:
@@ -74,7 +69,7 @@ services:
     container_name: mailer
     image: mailhog/mailhog
     ports:
-      - "127.0.0.1:8025:8025"
+      - "8025:8025"
     networks:
       - healther-net
 
