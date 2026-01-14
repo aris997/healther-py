@@ -50,6 +50,26 @@ class WorkspaceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class InviteMemberRequest(BaseModel):
+    email: EmailStr
+    full_name: Optional[str] = None
+    role: Role = Role.observer
+
+
+class MembershipUpdate(BaseModel):
+    role: Role
+
+
+class WorkspaceMember(BaseModel):
+    workspace_id: uuid.UUID
+    user_id: uuid.UUID
+    email: EmailStr
+    full_name: Optional[str]
+    role: Role
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class WatcherCreate(BaseModel):
     name: str
     url: str
@@ -57,6 +77,15 @@ class WatcherCreate(BaseModel):
     expected_body: str | None = None
     every_value: int = 15
     every_unit: WatchFrequency = WatchFrequency.minutes
+
+
+class WatcherUpdate(BaseModel):
+    name: Optional[str] = None
+    url: Optional[str] = None
+    expected_status: Optional[int] = None
+    expected_body: Optional[str] = None
+    every_value: Optional[int] = None
+    every_unit: Optional[WatchFrequency] = None
 
 
 class WatcherOut(BaseModel):
