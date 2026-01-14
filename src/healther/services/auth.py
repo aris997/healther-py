@@ -1,5 +1,7 @@
 """Authentication service functions."""
 
+import secrets
+
 from fastapi import Depends, HTTPException, status
 from sqlmodel import select
 
@@ -44,3 +46,20 @@ async def login_for_access_token(login: LoginRequest, session=Depends(get_sessio
         )
     access_token = create_access_token({"sub": str(user.id)})
     return Token(access_token=access_token)
+
+
+async def get_or_create_user(
+    email: str, full_name: str | None, session=Depends(get_session)
+) -> User:
+    """Find a user by email or create a placeholder with a random password."""
+    result = await session.exec(select(User).where(User.email == email))
+    user = result.first()
+    if user:
+        return user
+
+    random_password = secrets.token_urlsafe(16)
+    user = User(email=email, full_name=full_name, hashed_password=hash_password(random_password))
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    return user
