@@ -14,12 +14,23 @@ from .config import settings
 
 def _normalized_url(raw_url: str) -> str:
     """Ensure the SQLAlchemy URL is async-ready and uses psycopg when talking to Postgres."""
-    if not raw_url:
-        return "sqlite+aiosqlite:///./healther.db"
-    url = make_url(raw_url)
-    if url.drivername in {"psycopg", "postgresql"}:
-        url = url.set(drivername="postgresql+psycopg")
-    return str(url)
+    if raw_url:
+        url = make_url(raw_url)
+        if url.drivername in {"psycopg", "postgresql"}:
+            url = url.set(drivername="postgresql+psycopg")
+        return str(url)
+
+    # Build from discrete POSTGRES_* settings as single source of truth
+    host = settings.postgres_host
+    port = settings.postgres_port
+    user = settings.postgres_user
+    password = settings.postgres_password
+    dbname = settings.postgres_db
+    if host and user and dbname:
+        return f"postgresql+psycopg://{user}:{password}@{host}:{port}/{dbname}"
+
+    # Final fallback
+    return "sqlite+aiosqlite:///./healther.db"
 
 
 database_url = _normalized_url(settings.database_url)

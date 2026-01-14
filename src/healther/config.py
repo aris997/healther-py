@@ -10,7 +10,14 @@ class Settings(BaseSettings):
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
 
-    database_url: str = "sqlite+aiosqlite:///./healther.db"
+    # database config (prefer individual vars; DATABASE_URL optional override)
+    database_url: str | None = None
+    postgres_host: str = "db"
+    postgres_port: int = 5432
+    postgres_user: str = "healther"
+    postgres_password: str = "healther"
+    postgres_db: str = "healther"
+
     redis_url: str = "redis://redis:6379/0"
 
     mail_from: str = "healther@localhost"

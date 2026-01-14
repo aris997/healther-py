@@ -1,12 +1,14 @@
 name: healther-local
 services:
   db:
+    container_name: postgres-db
     image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: healther
-      POSTGRES_PASSWORD: healther
-      POSTGRES_DB: healther
-      POSTGRES_HOST_AUTH_METHOD: trust
+    env_file: .env.docker
+    # environment:
+    #   POSTGRES_USER: ${POSTGRES_USER}
+    #   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    #   POSTGRES_DB: ${POSTGRES_DB}
+    # POSTGRES_HOST_AUTH_METHOD: trust
     volumes:
       - db_data:/var/lib/postgresql/data
     networks:
@@ -16,16 +18,22 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    ports:
+      - "5432:5432"
 
   redis:
+    container_name: redis-db
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
     networks:
       - healther-net
+    ports:
+      - "6379:6379"
 
   api:
+    container_name: api-py
     build: .
     env_file: .env.docker
     depends_on:
@@ -39,6 +47,7 @@ services:
       - healther-net
 
   worker:
+    container_name: watcher-worker
     build: .
     command: ["python", "-m", "healther.workers"]
     env_file: .env.docker
@@ -51,6 +60,7 @@ services:
       - healther-net
 
   frontend:
+    container_name: frontend-serv
     build:
       context: ./frontend
     ports:
@@ -61,6 +71,7 @@ services:
       - healther-net
 
   mailhog:
+    container_name: mailer
     image: mailhog/mailhog
     ports:
       - "127.0.0.1:8025:8025"
