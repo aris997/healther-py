@@ -1,6 +1,6 @@
 # Authentication & Authorization
 
-- **Auth**: JWT bearer tokens issued via `/api/auth/token` using email + password.
+- **Auth**: JWT bearer tokens issued via `/api/v1/auth/token` using email + password.
 - **Password hashing**: PBKDF2-SHA256 (passlib) for portability in offline/test environments.
 - **JWT claims**: `sub` = user id (UUID), `exp` = expiry (default 60 minutes).
 
@@ -8,7 +8,7 @@
 - **owner**: full control; invite/remove members; promote to admin; manage watchers; toggle public status.
 - **admin**: manage watchers; view events; cannot delete workspace or promote owners.
 - **observer**: read-only for workspace resources.
-- **public**: unauthenticated access only to `/api/public/workspaces/{id}/events` when `is_public` is true.
+- **public**: unauthenticated access only to `/api/v1/public/workspaces/{id}/events` when `is_public` is true.
 
 ## Enforcement points
 - `get_current_user` – validates JWT, loads user.

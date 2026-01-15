@@ -1,6 +1,6 @@
 # API Surface (v0)
 
-Base path: `/api`
+Base path: `/api/v1`
 
 ## Auth
 - `POST /auth/register` – body `{ email, password, full_name? }` → `201 User`.
@@ -10,9 +10,14 @@ Base path: `/api`
 ## Workspaces
 - `POST /workspaces` – create workspace, caller becomes owner.
 - `GET /workspaces` – list workspaces the user belongs to.
+- `GET /workspaces/{workspace_id}/members` – list members (owner/admin).
+- `POST /workspaces/{workspace_id}/members/invite` – invite or auto-create user, set role.
+- `PATCH /workspaces/{workspace_id}/members/{user_id}` – change member role.
+- `DELETE /workspaces/{workspace_id}/members/{user_id}` – remove member.
 
 ## Watchers
 - `POST /workspaces/{workspace_id}/watchers` – create watcher (owner/admin).
+- `PATCH /watchers/{watcher_id}` – update watcher cadence/expectations (owner/admin).
 - `GET /workspaces/{workspace_id}/watchers` – list watchers for members.
 - `GET /watchers/{watcher_id}/events` – list events (members only).
 

@@ -9,7 +9,7 @@
 docker compose up --build
 ```
 Services:
-- `db` (Postgres @ db:5432)
+- `db` (Postgres @ db:5433)
 - `redis` (Redis @ redis:6379)
 - `api` (FastAPI, http://localhost:8000)
 - `worker` (RQ worker with scheduler)
