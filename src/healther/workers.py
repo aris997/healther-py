@@ -34,7 +34,7 @@ def main():
     redis_url = os.getenv("REDIS_URL", "redis://redis:6379/0")
     redis_conn = Redis.from_url(redis_url)
     with Connection(redis_conn):
-        worker = Worker(["health-checks"])
+        worker = Worker(["health-checks", "email-alerts"])
         worker.work(with_scheduler=True)
 
 

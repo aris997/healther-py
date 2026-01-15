@@ -95,37 +95,37 @@ async def test_register_login_and_workspace_flow(app):
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.post(
-            "/api/auth/register", json={"email": "alice@example.com", "password": "secret123"}
+            "/api/v1/auth/register", json={"email": "alice@example.com", "password": "secret123"}
         )
         assert resp.status_code == 201, resp.text
         user_id = resp.json()["id"]
 
         token_resp = await client.post(
-            "/api/auth/token", json={"username": "alice@example.com", "password": "secret123"}
+            "/api/v1/auth/token", json={"username": "alice@example.com", "password": "secret123"}
         )
         assert token_resp.status_code == 200, token_resp.text
         token = token_resp.json()["access_token"]
         headers = {"Authorization": f"Bearer {token}"}
 
-        me_resp = await client.get("/api/me", headers=headers)
+        me_resp = await client.get("/api/v1/me", headers=headers)
         assert me_resp.status_code == 200
         assert me_resp.json()["id"] == user_id
 
         ws_resp = await client.post(
-            "/api/workspaces", json={"name": "Team A", "is_public": True}, headers=headers
+            "/api/v1/workspaces", json={"name": "Team A", "is_public": True}, headers=headers
         )
         assert ws_resp.status_code == 201, ws_resp.text
         workspace_id = ws_resp.json()["id"]
 
         watcher_resp = await client.post(
-            f"/api/workspaces/{workspace_id}/watchers",
+            f"/api/v1/workspaces/{workspace_id}/watchers",
             json={"name": "Homepage", "url": "https://example.com", "expected_status": 200},
             headers=headers,
         )
         assert watcher_resp.status_code == 201, watcher_resp.text
         watcher_id = watcher_resp.json()["id"]
 
-        events_resp = await client.get(f"/api/watchers/{watcher_id}/events", headers=headers)
+        events_resp = await client.get(f"/api/v1/watchers/{watcher_id}/events", headers=headers)
         assert events_resp.status_code == 200
         assert events_resp.json() == []
 
@@ -136,25 +136,25 @@ async def test_member_invite_role_management_and_watcher_update(app):
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         # owner sign up
         resp = await client.post(
-            "/api/auth/register", json={"email": "owner@example.com", "password": "secret123"}
+            "/api/v1/auth/register", json={"email": "owner@example.com", "password": "secret123"}
         )
         assert resp.status_code == 201, resp.text
         owner_id = resp.json()["id"]
         token_resp = await client.post(
-            "/api/auth/token", json={"username": "owner@example.com", "password": "secret123"}
+            "/api/v1/auth/token", json={"username": "owner@example.com", "password": "secret123"}
         )
         headers = {"Authorization": f"Bearer {token_resp.json()['access_token']}"}
 
         # create workspace
         ws_resp = await client.post(
-            "/api/workspaces", json={"name": "Ops", "is_public": False}, headers=headers
+            "/api/v1/workspaces", json={"name": "Ops", "is_public": False}, headers=headers
         )
         assert ws_resp.status_code == 201
         workspace_id = ws_resp.json()["id"]
 
         # invite new member
         invite_resp = await client.post(
-            f"/api/workspaces/{workspace_id}/members/invite",
+            f"/api/v1/workspaces/{workspace_id}/members/invite",
             json={"email": "bob@example.com", "full_name": "Bob", "role": "observer"},
             headers=headers,
         )
@@ -163,14 +163,16 @@ async def test_member_invite_role_management_and_watcher_update(app):
         assert invite_resp.json()["role"] == "observer"
 
         # list members should include owner and bob
-        members_resp = await client.get(f"/api/workspaces/{workspace_id}/members", headers=headers)
+        members_resp = await client.get(
+            f"/api/v1/workspaces/{workspace_id}/members", headers=headers
+        )
         assert members_resp.status_code == 200
         members = members_resp.json()
         assert {m["user_id"] for m in members} == {owner_id, bob_id}
 
         # promote bob to admin
         update_resp = await client.patch(
-            f"/api/workspaces/{workspace_id}/members/{bob_id}",
+            f"/api/v1/workspaces/{workspace_id}/members/{bob_id}",
             json={"role": "admin"},
             headers=headers,
         )
@@ -179,16 +181,45 @@ async def test_member_invite_role_management_and_watcher_update(app):
 
         # remove bob
         del_resp = await client.delete(
-            f"/api/workspaces/{workspace_id}/members/{bob_id}", headers=headers
+            f"/api/v1/workspaces/{workspace_id}/members/{bob_id}", headers=headers
         )
         assert del_resp.status_code == 204
-        members_resp = await client.get(f"/api/workspaces/{workspace_id}/members", headers=headers)
+        members_resp = await client.get(
+            f"/api/v1/workspaces/{workspace_id}/members", headers=headers
+        )
         assert members_resp.status_code == 200
         assert len(members_resp.json()) == 1
 
+        recipient_resp = await client.post(
+            f"/api/v1/workspaces/{workspace_id}/recipients",
+            json={"email": "alerts@example.com", "display_name": "On-call"},
+            headers=headers,
+        )
+        assert recipient_resp.status_code == 201, recipient_resp.text
+        recipient_id = recipient_resp.json()["id"]
+
+        list_recipients_resp = await client.get(
+            f"/api/v1/workspaces/{workspace_id}/recipients", headers=headers
+        )
+        assert list_recipients_resp.status_code == 200
+        assert len(list_recipients_resp.json()) == 1
+
+        update_recipient_resp = await client.patch(
+            f"/api/v1/workspaces/{workspace_id}/recipients/{recipient_id}",
+            json={"is_active": False},
+            headers=headers,
+        )
+        assert update_recipient_resp.status_code == 200
+        assert update_recipient_resp.json()["is_active"] is False
+
+        delete_recipient_resp = await client.delete(
+            f"/api/v1/workspaces/{workspace_id}/recipients/{recipient_id}", headers=headers
+        )
+        assert delete_recipient_resp.status_code == 204
+
         # create watcher and update schedule
         watcher_resp = await client.post(
-            f"/api/workspaces/{workspace_id}/watchers",
+            f"/api/v1/workspaces/{workspace_id}/watchers",
             json={"name": "API", "url": "https://example.com/api"},
             headers=headers,
         )
@@ -196,7 +227,7 @@ async def test_member_invite_role_management_and_watcher_update(app):
         watcher_id = watcher_resp.json()["id"]
 
         update_watch_resp = await client.patch(
-            f"/api/watchers/{watcher_id}",
+            f"/api/v1/watchers/{watcher_id}",
             json={"every_value": 30, "every_unit": "hours", "expected_status": 204},
             headers=headers,
         )

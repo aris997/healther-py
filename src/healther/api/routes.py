@@ -7,15 +7,27 @@ from sqlmodel import select
 
 from ..api.deps import get_current_user, get_workspace_role
 from ..db import get_session
-from ..models import HealthEvent, Membership, Role, ServiceWatcher, User, Workspace
+from ..models import (
+    HealthEvent,
+    Membership,
+    NotificationRecipient,
+    Role,
+    ServiceWatcher,
+    User,
+    Workspace,
+)
 from ..schemas import (
     HealthEventOut,
     InviteMemberRequest,
     LoginRequest,
     MembershipUpdate,
+    RecipientCreate,
+    RecipientOut,
+    RecipientUpdate,
     Token,
     UserCreate,
     UserOut,
+    UserUpdate,
     WatcherCreate,
     WatcherOut,
     WatcherUpdate,
@@ -26,7 +38,7 @@ from ..schemas import (
 from ..services import auth as auth_service
 from ..services import watchers as watcher_service
 
-router = APIRouter(prefix="/api")
+router = APIRouter(prefix="/api/v1")
 
 
 @router.post("/auth/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -42,6 +54,28 @@ async def login_for_access_token(payload: LoginRequest, session=Depends(get_sess
 
 @router.get("/me", response_model=UserOut)
 async def read_users_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_users_me(
+    data: UserUpdate,
+    current_user: User = Depends(get_current_user),
+    session=Depends(get_session),
+):
+    payload = data.model_dump(exclude_unset=True)
+    if not payload:
+        return current_user
+    if ("first_name" in payload or "last_name" in payload) and "full_name" not in payload:
+        first = payload.get("first_name", current_user.first_name)
+        last = payload.get("last_name", current_user.last_name)
+        full_name = " ".join([part for part in [first, last] if part])
+        payload["full_name"] = full_name or None
+    for key, value in payload.items():
+        setattr(current_user, key, value)
+    session.add(current_user)
+    await session.commit()
+    await session.refresh(current_user)
     return current_user
 
 
@@ -129,9 +163,7 @@ async def invite_member(
     )
     if existing.first():
         raise HTTPException(status_code=400, detail="User already in workspace")
-    membership = Membership(
-        workspace_id=workspace_id, user_id=invited_user.id, role=payload.role
-    )
+    membership = Membership(workspace_id=workspace_id, user_id=invited_user.id, role=payload.role)
     session.add(membership)
     await session.commit()
     return WorkspaceMember(
@@ -193,6 +225,96 @@ async def remove_member(
     return None
 
 
+@router.get("/workspaces/{workspace_id}/recipients", response_model=list[RecipientOut])
+async def list_recipients(
+    workspace_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session=Depends(get_session),
+):
+    role = await get_workspace_role(workspace_id, current_user, session)
+    _require_admin_or_owner(role)
+    result = await session.exec(
+        select(NotificationRecipient).where(NotificationRecipient.workspace_id == workspace_id)
+    )
+    return result.all()
+
+
+@router.post(
+    "/workspaces/{workspace_id}/recipients",
+    response_model=RecipientOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_recipient(
+    workspace_id: uuid.UUID,
+    payload: RecipientCreate,
+    current_user: User = Depends(get_current_user),
+    session=Depends(get_session),
+):
+    role = await get_workspace_role(workspace_id, current_user, session)
+    _require_admin_or_owner(role)
+    existing = await session.exec(
+        select(NotificationRecipient).where(
+            NotificationRecipient.workspace_id == workspace_id,
+            NotificationRecipient.email == payload.email,
+        )
+    )
+    if existing.first():
+        raise HTTPException(status_code=400, detail="Recipient already exists")
+    recipient = NotificationRecipient(workspace_id=workspace_id, **payload.model_dump())
+    session.add(recipient)
+    await session.commit()
+    await session.refresh(recipient)
+    return recipient
+
+
+@router.patch(
+    "/workspaces/{workspace_id}/recipients/{recipient_id}",
+    response_model=RecipientOut,
+)
+async def update_recipient(
+    workspace_id: uuid.UUID,
+    recipient_id: uuid.UUID,
+    payload: RecipientUpdate,
+    current_user: User = Depends(get_current_user),
+    session=Depends(get_session),
+):
+    role = await get_workspace_role(workspace_id, current_user, session)
+    _require_admin_or_owner(role)
+    recipient = await session.get(NotificationRecipient, recipient_id)
+    if not recipient or recipient.workspace_id != workspace_id:
+        raise HTTPException(status_code=404, detail="Recipient not found")
+    data = payload.model_dump(exclude_unset=True)
+    if not data:
+        return recipient
+    for key, value in data.items():
+        setattr(recipient, key, value)
+    session.add(recipient)
+    await session.commit()
+    await session.refresh(recipient)
+    return recipient
+
+
+@router.delete(
+    "/workspaces/{workspace_id}/recipients/{recipient_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def remove_recipient(
+    workspace_id: uuid.UUID,
+    recipient_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session=Depends(get_session),
+):
+    role = await get_workspace_role(workspace_id, current_user, session)
+    _require_admin_or_owner(role)
+    recipient = await session.get(NotificationRecipient, recipient_id)
+    if not recipient or recipient.workspace_id != workspace_id:
+        raise HTTPException(status_code=404, detail="Recipient not found")
+    session.add(recipient)
+    await session.delete(recipient)
+    await session.commit()
+    return None
+
+
 @router.post(
     "/workspaces/{workspace_id}/watchers",
     response_model=WatcherOut,
@@ -234,6 +356,19 @@ async def list_watchers(
     return await watcher_service.list_watchers(workspace_id, session)
 
 
+@router.get("/workspaces/{workspace_id}/events", response_model=list[HealthEventOut])
+async def list_workspace_events(
+    workspace_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session=Depends(get_session),
+):
+    await get_workspace_role(workspace_id, current_user, session)
+    events = await session.exec(
+        select(HealthEvent).join(ServiceWatcher).where(ServiceWatcher.workspace_id == workspace_id)
+    )
+    return events.all()
+
+
 @router.get("/watchers/{watcher_id}/events", response_model=list[HealthEventOut])
 async def list_events(
     watcher_id: uuid.UUID,
@@ -258,3 +393,14 @@ async def public_events(workspace_id: uuid.UUID, session=Depends(get_session)):
         select(HealthEvent).join(ServiceWatcher).where(ServiceWatcher.workspace_id == workspace_id)
     )
     return events.all()
+
+
+@router.get("/public/workspaces/{workspace_id}/watchers", response_model=list[WatcherOut])
+async def public_watchers(workspace_id: uuid.UUID, session=Depends(get_session)):
+    workspace = await session.get(Workspace, workspace_id)
+    if not workspace or not workspace.is_public:
+        raise HTTPException(status_code=404, detail="Workspace not public")
+    result = await session.exec(
+        select(ServiceWatcher).where(ServiceWatcher.workspace_id == workspace_id)
+    )
+    return result.all()

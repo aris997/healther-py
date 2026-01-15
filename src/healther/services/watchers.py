@@ -10,6 +10,7 @@ from sqlmodel import select
 
 from ..config import settings
 from ..models import HealthEvent, HealthStatus, Role, ServiceWatcher, WatchFrequency
+from ..notifications import enqueue_alert
 
 # Single Redis connection and queue used by API to enqueue health checks
 redis_conn = Redis.from_url(settings.redis_url)
@@ -57,12 +58,16 @@ async def record_event(
 
 async def perform_check(watcher: ServiceWatcher, session):
     """Perform a single HTTP check for the watcher and persist a HealthEvent."""
+    event = None
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.get(watcher.url)
+            method = "HEAD"
+            if watcher.expected_body:
+                method = "GET"
+            response = await client.request(method, watcher.url)
             elapsed_ms = response.elapsed.total_seconds() * 1000
             if response.status_code != watcher.expected_status:
-                await record_event(
+                event = await record_event(
                     watcher.id,
                     HealthStatus.down,
                     response.status_code,
@@ -71,7 +76,7 @@ async def perform_check(watcher: ServiceWatcher, session):
                     session,
                 )
             elif watcher.expected_body and watcher.expected_body not in response.text:
-                await record_event(
+                event = await record_event(
                     watcher.id,
                     HealthStatus.degraded,
                     response.status_code,
@@ -80,11 +85,16 @@ async def perform_check(watcher: ServiceWatcher, session):
                     session,
                 )
             else:
-                await record_event(
+                event = await record_event(
                     watcher.id, HealthStatus.healthy, response.status_code, elapsed_ms, None, session
                 )
     except httpx.RequestError as exc:
-        await record_event(watcher.id, HealthStatus.down, None, None, f"Error: {exc}", session)
+        event = await record_event(
+            watcher.id, HealthStatus.down, None, None, f"Error: {exc}", session
+        )
+
+    if event and event.status != HealthStatus.healthy:
+        enqueue_alert(event.id)
 
     # schedule next run
     queue.enqueue_in(_interval_as_timedelta(watcher), "healther.workers.run_check", watcher.id)

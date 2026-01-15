@@ -33,8 +33,30 @@ class UserOut(BaseModel):
     id: uuid.UUID
     email: EmailStr
     full_name: Optional[str]
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    pronouns: Optional[str] = None
+    city: Optional[str] = None
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
+    github_url: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    website_url: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    pronouns: Optional[str] = None
+    city: Optional[str] = None
+    bio: Optional[str] = None
+    avatar_url: Optional[str] = None
+    github_url: Optional[str] = None
+    linkedin_url: Optional[str] = None
+    website_url: Optional[str] = None
 
 
 class WorkspaceCreate(BaseModel):
@@ -102,6 +124,7 @@ class WatcherOut(BaseModel):
 
 class HealthEventOut(BaseModel):
     id: uuid.UUID
+    watcher_id: uuid.UUID
     status: HealthStatus
     response_status: int | None
     response_time_ms: float | None
@@ -115,5 +138,28 @@ class MembershipOut(BaseModel):
     workspace_id: uuid.UUID
     user_id: uuid.UUID
     role: Role
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RecipientCreate(BaseModel):
+    email: EmailStr
+    display_name: Optional[str] = None
+    is_active: bool = True
+
+
+class RecipientUpdate(BaseModel):
+    email: Optional[EmailStr] = None
+    display_name: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class RecipientOut(BaseModel):
+    id: uuid.UUID
+    workspace_id: uuid.UUID
+    email: EmailStr
+    display_name: Optional[str]
+    is_active: bool
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

@@ -17,6 +17,15 @@ class User(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, nullable=False)
     email: str = Field(unique=True, index=True)
     full_name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    pronouns: str | None = None
+    city: str | None = None
+    bio: str | None = None
+    avatar_url: str | None = None
+    github_url: str | None = None
+    linkedin_url: str | None = None
+    website_url: str | None = None
     hashed_password: str
     created_at: dt.datetime = Field(
         default_factory=lambda: dt.datetime.now(dt.timezone.utc), nullable=False
@@ -35,6 +44,7 @@ class Workspace(SQLModel, table=True):
 
     memberships: list["Membership"] = Relationship(back_populates="workspace")
     watchers: list["ServiceWatcher"] = Relationship(back_populates="workspace")
+    recipients: list["NotificationRecipient"] = Relationship(back_populates="workspace")
 
 
 class Membership(SQLModel, table=True):
@@ -84,3 +94,14 @@ class HealthEvent(SQLModel, table=True):
     message: str | None = None
 
     watcher: ServiceWatcher = Relationship(back_populates="events")
+
+
+class NotificationRecipient(SQLModel, table=True):
+    id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
+    workspace_id: uuid.UUID = Field(foreign_key="workspace.id", index=True)
+    email: str = Field(index=True)
+    display_name: str | None = None
+    is_active: bool = True
+    created_at: dt.datetime = Field(default_factory=lambda: dt.datetime.now(dt.timezone.utc))
+
+    workspace: Workspace = Relationship(back_populates="recipients")

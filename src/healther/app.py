@@ -8,7 +8,7 @@ from .db import lifespan
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Healther", lifespan=lifespan)
+    app = FastAPI(title="Healther", lifespan=lifespan, docs_url="/docs")
 
     app.add_middleware(
         CORSMiddleware,
