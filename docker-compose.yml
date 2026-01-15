@@ -14,7 +14,7 @@ services:
       timeout: 5s
       retries: 5
     ports:
-      - "5432:5432"
+      - "5433:5432"
 
   redis:
     container_name: redis-db
@@ -40,6 +40,15 @@ services:
       - "8000:8000"
     networks:
       - healther-net
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/docs').status == 200 else 1)\"",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   worker:
     container_name: watcher-worker
@@ -47,7 +56,7 @@ services:
     command: ["python", "-m", "healther.workers"]
     env_file: .env.docker
     depends_on:
-      db:
+      api:
         condition: service_healthy
       redis:
         condition: service_started
