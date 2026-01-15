@@ -9,23 +9,23 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(Boolean(token));
   const [error, setError] = useState("");
 
+  const refresh = async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const u = await api.me(token);
+      setUser(u);
+      setError("");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!token) return;
-    let cancelled = false;
-    setLoading(true);
-    api
-      .me(token)
-      .then((u) => {
-        if (!cancelled) {
-          setUser(u);
-          setError("");
-        }
-      })
-      .catch((err) => !cancelled && setError(err.message))
-      .finally(() => !cancelled && setLoading(false));
-    return () => {
-      cancelled = true;
-    };
+    refresh();
   }, [token]);
 
   const login = async (email, password) => {
@@ -46,7 +46,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, error, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, error, login, register, logout, refresh }}>
       {children}
     </AuthContext.Provider>
   );
