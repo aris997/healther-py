@@ -128,3 +128,14 @@ async def update_watcher(watcher: ServiceWatcher, data, role: Role, session):
     await session.refresh(watcher)
     queue.enqueue("healther.workers.run_check", watcher.id)
     return watcher
+
+
+async def delete_watcher(watcher: ServiceWatcher, role: Role, session):
+    """Delete a watcher and its health events."""
+    if role not in (Role.owner, Role.admin):
+        raise HTTPException(status_code=403, detail="Insufficient permissions")
+    events = await session.exec(select(HealthEvent).where(HealthEvent.watcher_id == watcher.id))
+    for event in events.all():
+        await session.delete(event)
+    await session.delete(watcher)
+    await session.commit()

@@ -6,7 +6,7 @@ from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, EmailStr
 
-from .models import HealthStatus, Role, WatchFrequency
+from .models import HealthStatus, ProfileVisibility, Role, WatchFrequency
 
 
 class Token(BaseModel):
@@ -42,6 +42,7 @@ class UserOut(BaseModel):
     github_url: Optional[str] = None
     linkedin_url: Optional[str] = None
     website_url: Optional[str] = None
+    profile_visibility: ProfileVisibility
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -57,6 +58,7 @@ class UserUpdate(BaseModel):
     github_url: Optional[str] = None
     linkedin_url: Optional[str] = None
     website_url: Optional[str] = None
+    profile_visibility: Optional[ProfileVisibility] = None
 
 
 class WorkspaceCreate(BaseModel):

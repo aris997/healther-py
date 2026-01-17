@@ -13,6 +13,12 @@ class Role(str, Enum):
     observer = "observer"
 
 
+class ProfileVisibility(str, Enum):
+    public = "public"
+    authenticated = "authenticated"
+    workspace = "workspace"
+
+
 class User(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True, nullable=False)
     email: str = Field(unique=True, index=True)
@@ -26,6 +32,7 @@ class User(SQLModel, table=True):
     github_url: str | None = None
     linkedin_url: str | None = None
     website_url: str | None = None
+    profile_visibility: ProfileVisibility = Field(default=ProfileVisibility.workspace)
     hashed_password: str
     created_at: dt.datetime = Field(
         default_factory=lambda: dt.datetime.now(dt.timezone.utc), nullable=False

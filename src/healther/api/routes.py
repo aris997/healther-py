@@ -345,6 +345,20 @@ async def update_watcher(
     return updated
 
 
+@router.delete("/watchers/{watcher_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_watcher(
+    watcher_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    session=Depends(get_session),
+):
+    watcher = await session.get(ServiceWatcher, watcher_id)
+    if not watcher:
+        raise HTTPException(status_code=404, detail="Watcher not found")
+    role = await get_workspace_role(watcher.workspace_id, current_user, session)
+    await watcher_service.delete_watcher(watcher, role, session)
+    return None
+
+
 @router.get("/workspaces/{workspace_id}/watchers", response_model=list[WatcherOut])
 async def list_watchers(
     workspace_id: uuid.UUID,

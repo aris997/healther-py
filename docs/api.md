@@ -6,6 +6,7 @@ Base path: `/api/v1`
 - `POST /auth/register` – body `{ email, password, full_name? }` → `201 User`.
 - `POST /auth/token` – form `{ username, password }` → `{ access_token, token_type }`.
 - `GET /me` – returns current user.
+- `PATCH /me` – update profile fields, including `profile_visibility` (public|authenticated|workspace).
 
 ## Workspaces
 - `POST /workspaces` – create workspace, caller becomes owner.
@@ -18,6 +19,7 @@ Base path: `/api/v1`
 ## Watchers
 - `POST /workspaces/{workspace_id}/watchers` – create watcher (owner/admin).
 - `PATCH /watchers/{watcher_id}` – update watcher cadence/expectations (owner/admin).
+- `DELETE /watchers/{watcher_id}` – delete watcher (owner/admin).
 - `GET /workspaces/{workspace_id}/watchers` – list watchers for members.
 - `GET /watchers/{watcher_id}/events` – list events (members only).
 

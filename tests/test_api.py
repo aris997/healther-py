@@ -110,6 +110,7 @@ async def test_register_login_and_workspace_flow(app):
         me_resp = await client.get("/api/v1/me", headers=headers)
         assert me_resp.status_code == 200
         assert me_resp.json()["id"] == user_id
+        assert me_resp.json()["profile_visibility"] == "workspace"
 
         ws_resp = await client.post(
             "/api/v1/workspaces", json={"name": "Team A", "is_public": True}, headers=headers
@@ -236,3 +237,22 @@ async def test_member_invite_role_management_and_watcher_update(app):
         assert data["every_value"] == 30
         assert data["every_unit"] == "hours"
         assert data["expected_status"] == 204
+
+        profile_resp = await client.patch(
+            "/api/v1/me",
+            json={"profile_visibility": "public", "pronouns": "they/them"},
+            headers=headers,
+        )
+        assert profile_resp.status_code == 200
+        payload = profile_resp.json()
+        assert payload["profile_visibility"] == "public"
+        assert payload["pronouns"] == "they/them"
+
+        delete_watch_resp = await client.delete(f"/api/v1/watchers/{watcher_id}", headers=headers)
+        assert delete_watch_resp.status_code == 204
+
+        list_watchers_resp = await client.get(
+            f"/api/v1/workspaces/{workspace_id}/watchers", headers=headers
+        )
+        assert list_watchers_resp.status_code == 200
+        assert list_watchers_resp.json() == []
