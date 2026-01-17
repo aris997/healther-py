@@ -20,7 +20,14 @@ async function request(path, { method = "GET", body, token } = {}) {
     const text = await res.text();
     throw new Error(text || res.statusText);
   }
-  return res.json();
+  if (res.status === 204) return null;
+  const text = await res.text();
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }
 
 export const api = {
@@ -37,6 +44,8 @@ export const api = {
     request(`/workspaces/${workspaceId}/events`, { token }),
   updateWatcher: (token, watcherId, data) =>
     request(`/watchers/${watcherId}`, { method: "PATCH", body: data, token }),
+  deleteWatcher: (token, watcherId) =>
+    request(`/watchers/${watcherId}`, { method: "DELETE", token }),
   updateProfile: (token, data) => request("/me", { method: "PATCH", body: data, token }),
   listMembers: (token, workspaceId) => request(`/workspaces/${workspaceId}/members`, { token }),
   inviteMember: (token, workspaceId, data) =>

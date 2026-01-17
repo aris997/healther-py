@@ -17,6 +17,58 @@ const statCards = [
 
 const THEME_KEY = "healther.theme";
 const DAY_MS = 24 * 60 * 60 * 1000;
+const FALLBACK_TIMEZONE = "Europe/Rome";
+let cachedTimeZone;
+let cachedEventFormatter;
+let cachedRelativeFormatter;
+
+function resolveUserTimeZone() {
+  if (cachedTimeZone) return cachedTimeZone;
+  try {
+    const tz = Intl?.DateTimeFormat?.().resolvedOptions().timeZone;
+    cachedTimeZone = tz || FALLBACK_TIMEZONE;
+  } catch {
+    cachedTimeZone = FALLBACK_TIMEZONE;
+  }
+  return cachedTimeZone;
+}
+
+function getEventFormatter() {
+  if (cachedEventFormatter !== undefined) return cachedEventFormatter;
+  const timeZone = resolveUserTimeZone();
+  try {
+    cachedEventFormatter = new Intl.DateTimeFormat(undefined, {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZoneName: "short",
+      timeZone,
+    });
+  } catch {
+    try {
+      cachedEventFormatter = new Intl.DateTimeFormat(undefined, {
+        dateStyle: "medium",
+        timeStyle: "short",
+      });
+    } catch {
+      cachedEventFormatter = null;
+    }
+  }
+  return cachedEventFormatter;
+}
+
+function getRelativeFormatter() {
+  if (cachedRelativeFormatter !== undefined) return cachedRelativeFormatter;
+  try {
+    if (typeof Intl === "undefined" || !Intl.RelativeTimeFormat) {
+      cachedRelativeFormatter = null;
+    } else {
+      cachedRelativeFormatter = new Intl.RelativeTimeFormat(undefined, { numeric: "auto" });
+    }
+  } catch {
+    cachedRelativeFormatter = null;
+  }
+  return cachedRelativeFormatter;
+}
 
 function applyTheme(theme) {
   if (theme === "light" || theme === "dark") {
@@ -71,6 +123,56 @@ function latencySeries(events, limit = 60) {
     .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
     .slice(-limit)
     .map((event) => event.response_time_ms);
+}
+
+function formatEventTime(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const formatter = getEventFormatter();
+  if (!formatter) return date.toLocaleString();
+  return formatter.format(date);
+}
+
+function formatRelativeTime(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  const diffSeconds = Math.round((date.getTime() - Date.now()) / 1000);
+  const absSeconds = Math.abs(diffSeconds);
+  const formatter = getRelativeFormatter();
+  if (!formatter) return formatEventTime(value);
+  if (absSeconds < 60) {
+    return formatter.format(diffSeconds, "second");
+  }
+  if (absSeconds < 3600) {
+    return formatter.format(Math.round(diffSeconds / 60), "minute");
+  }
+  if (absSeconds < 86400) {
+    return formatter.format(Math.round(diffSeconds / 3600), "hour");
+  }
+  if (absSeconds < 604800) {
+    return formatter.format(Math.round(diffSeconds / 86400), "day");
+  }
+  return formatter.format(Math.round(diffSeconds / 604800), "week");
+}
+
+function uptimePercentage(events, days = 90) {
+  const cutoff = Date.now() - days * DAY_MS;
+  const filtered = events.filter((event) => {
+    if (!event.created_at) return false;
+    const timestamp = new Date(event.created_at).getTime();
+    return !Number.isNaN(timestamp) && timestamp >= cutoff;
+  });
+  if (!filtered.length) return null;
+  const healthy = filtered.filter((event) => event.status === "healthy").length;
+  return Math.round((healthy / filtered.length) * 100);
+}
+
+function formatLatencyMs(value) {
+  if (value == null) return "—";
+  const rounded = Math.round(value);
+  return Number.isFinite(rounded) ? `${rounded}` : "—";
 }
 
 function LatencyChart({ series }) {
@@ -286,6 +388,7 @@ function Protected({ children }) {
 function Dashboard() {
   const { token, user } = useAuth();
   const [workspaces, setWorkspaces] = useState([]);
+  const [watcherCount, setWatcherCount] = useState(0);
   const [name, setName] = useState("");
   const [isPublic, setIsPublic] = useState(false);
   const [error, setError] = useState("");
@@ -294,6 +397,15 @@ function Dashboard() {
     try {
       const data = await api.listWorkspaces(token);
       setWorkspaces(data);
+      if (!data.length) {
+        setWatcherCount(0);
+        return;
+      }
+      const watcherLists = await Promise.all(
+        data.map((workspace) => api.listWatchers(token, workspace.id))
+      );
+      const total = watcherLists.reduce((sum, list) => sum + list.length, 0);
+      setWatcherCount(total);
     } catch (err) {
       setError(err.message);
     }
@@ -321,7 +433,9 @@ function Dashboard() {
       <div className="panel">
         <div className="panel__header">
           <h2>Hello, {user?.email || "friend"}</h2>
-          <span className="pill">Workspaces: {workspaces.length}</span>
+          <span className="pill">
+            Workspaces: {workspaces.length} · Watchers: {watcherCount}
+          </span>
         </div>
         <p>Create a new workspace or open an existing one to manage watchers.</p>
         <form onSubmit={create} className="form inline">
@@ -374,6 +488,8 @@ function Watchers() {
   const [editForm, setEditForm] = useState(null);
   const [editError, setEditError] = useState("");
   const [editBusy, setEditBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [recipients, setRecipients] = useState([]);
   const [recipientForm, setRecipientForm] = useState({ email: "", display_name: "" });
   const [recipientError, setRecipientError] = useState("");
@@ -435,6 +551,7 @@ function Watchers() {
       every_value: watcher.every_value ?? 15,
       every_unit: watcher.every_unit ?? "minutes",
     });
+    setDeleteError("");
     try {
       const data = await api.listWatcherEvents(token, watcher.id);
       setEvents(data);
@@ -484,6 +601,29 @@ function Watchers() {
       setEditError(err.message);
     } finally {
       setEditBusy(false);
+    }
+  };
+
+  const removeWatcher = async () => {
+    if (!selectedWatcher) return;
+    const confirmed = window.confirm(
+      "Delete this watcher? This will remove all recorded events."
+    );
+    if (!confirmed) return;
+    setDeleteError("");
+    setDeleteBusy(true);
+    try {
+      await api.deleteWatcher(token, selectedWatcher);
+      setSelectedWatcher(null);
+      setEditForm(null);
+      setEvents([]);
+      setHealthExpanded(null);
+      await loadWatchers();
+      await loadWorkspaceEvents();
+    } catch (err) {
+      setDeleteError(err.message);
+    } finally {
+      setDeleteBusy(false);
     }
   };
 
@@ -654,6 +794,7 @@ function Watchers() {
             const watcherEvents = eventsByWatcher[watcher.id] || [];
             const bars = dailyBars(watcherEvents);
             const series = latencySeries(watcherEvents);
+            const uptime = uptimePercentage(watcherEvents);
             const expanded = healthExpanded === watcher.id;
             return (
               <div key={watcher.id} className="uptime-card">
@@ -661,6 +802,9 @@ function Watchers() {
                   <div className="uptime-meta">
                     <div className="watcher-card__name">{watcher.name}</div>
                     <div className="muted">{watcher.url}</div>
+                    <div className="muted">
+                      90-day uptime: {uptime == null ? "No data" : `${uptime}%`}
+                    </div>
                   </div>
                   <div className="status-strip status-strip--compact">
                     {bars.map((bar) => {
@@ -853,18 +997,20 @@ function Watchers() {
           <div className="panel__header">
             <h3>Latest events</h3>
           </div>
-          <div className="table">
-            <div className="row head">
+          <div className="table events-table">
+            <div className="row head events-row">
               <div>Status</div>
               <div>Code</div>
               <div>Latency (ms)</div>
+              <div>Time</div>
               <div>Message</div>
             </div>
             {events.map((e) => (
-              <div key={e.id} className="row">
+              <div key={e.id} className="row events-row">
                 <div className={`badge badge--${e.status}`}>{e.status}</div>
                 <div>{e.response_status ?? "—"}</div>
-                <div>{e.response_time_ms ?? "—"}</div>
+                <div>{formatLatencyMs(e.response_time_ms)}</div>
+                <div>{formatEventTime(e.created_at)}</div>
                 <div className="muted">{e.message ?? ""}</div>
               </div>
             ))}
@@ -924,11 +1070,22 @@ function Watchers() {
                 </select>
               </label>
             </div>
-            <button className="btn btn--primary" type="submit" disabled={editBusy}>
-              Save changes
-            </button>
+            <div className="actions-row">
+              <button className="btn btn--primary" type="submit" disabled={editBusy}>
+                Save changes
+              </button>
+              <button
+                className="btn btn--ghost btn--danger"
+                type="button"
+                onClick={removeWatcher}
+                disabled={deleteBusy}
+              >
+                Delete watcher
+              </button>
+            </div>
           </form>
           {editError && <div className="error">{editError}</div>}
+          {deleteError && <div className="error">{deleteError}</div>}
         </div>
       )}
     </div>
@@ -948,6 +1105,7 @@ function Settings() {
     github_url: "",
     linkedin_url: "",
     website_url: "",
+    profile_visibility: "workspace",
   });
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
@@ -975,6 +1133,7 @@ function Settings() {
       github_url: user.github_url || "",
       linkedin_url: user.linkedin_url || "",
       website_url: user.website_url || "",
+      profile_visibility: user.profile_visibility || "workspace",
     });
   }, [user]);
 
@@ -1077,6 +1236,14 @@ function Settings() {
               Website
               <input name="website_url" value={form.website_url} onChange={onChange} placeholder="https://you.com" />
             </label>
+            <label>
+              Profile visibility
+              <select name="profile_visibility" value={form.profile_visibility} onChange={onChange}>
+                <option value="workspace">Workspace members only</option>
+                <option value="authenticated">Any authenticated user</option>
+                <option value="public">Public</option>
+              </select>
+            </label>
           </div>
           {form.avatar_url && (
             <div className="avatar-preview">
@@ -1141,6 +1308,10 @@ function PublicWorkspace() {
           const watcherEvents = eventsByWatcher[watcher.id] || [];
           const bars = dailyBars(watcherEvents);
           const series = latencySeries(watcherEvents);
+          const uptime = uptimePercentage(watcherEvents);
+          const latestEvent = watcherEvents
+            .filter((event) => event.created_at)
+            .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
           const expanded = expandedId === watcher.id;
           return (
             <div key={watcher.id} className="public-card">
@@ -1149,6 +1320,12 @@ function PublicWorkspace() {
                   <div className="public-card__name">{watcher.name}</div>
                   <div className="public-card__meta">
                     Target {watcher.expected_status} · every {watcher.every_value} {watcher.every_unit}
+                  </div>
+                  <div className="muted">
+                    90-day uptime: {uptime == null ? "No data" : `${uptime}%`}
+                  </div>
+                  <div className="muted">
+                    Last event: {latestEvent ? formatRelativeTime(latestEvent.created_at) : "—"}
                   </div>
                 </div>
                 <button
