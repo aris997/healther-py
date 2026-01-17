@@ -4,6 +4,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """# Settings"""
+
     app_name: str = "Healther"
     environment: str = "development"
     secret_key: str = "dev-secret-change-me"
